@@ -233,4 +233,10 @@ config LUA_MODULE_WS2812
   help
       Includes the ws2812 module.
 
+config LUA_MODULE_TIME
+  bool "time module"
+  default "n"
+  help
+      Includes the time module.
+
 endmenu
