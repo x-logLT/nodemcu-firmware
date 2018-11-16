@@ -76,7 +76,6 @@ void uart_event_task( task_param_t param, task_prio_t prio ) {
     }
     
     free(post->data);
-    free(post);
   } else {
     char *err;
     switch(post->type) {
@@ -92,6 +91,7 @@ void uart_event_task( task_param_t param, task_prio_t prio ) {
     }
     uart_on_error_cb(id, err, strlen(err));
   }
+  free(post);
 }
 
 static void task_uart( void *pvParameters ){
@@ -130,6 +130,7 @@ static void task_uart( void *pvParameters ){
           }
           post->id = id;
           post->type = PLATFORM_UART_EVENT_BREAK;
+		  break;
         case UART_FIFO_OVF:
         case UART_BUFFER_FULL:
         case UART_PARITY_ERR:
@@ -158,6 +159,8 @@ static void task_uart( void *pvParameters ){
 // pins must not be null for non-console uart
 uint32_t platform_uart_setup( unsigned id, uint32_t baud, int databits, int parity, int stopbits, uart_pins_t* pins )
 {
+  uint32_t inversemask = 0;
+  
   if (id == CONSOLE_UART)
   {
     ConsoleSetup_t cfg;
@@ -194,8 +197,8 @@ uint32_t platform_uart_setup( unsigned id, uint32_t baud, int databits, int pari
   else
   {
     int flow_control = UART_HW_FLOWCTRL_DISABLE;
-    if(pins->flow_control & PLATFORM_UART_FLOW_CTS) flow_control |= UART_HW_FLOWCTRL_CTS;
-    if(pins->flow_control & PLATFORM_UART_FLOW_RTS) flow_control |= UART_HW_FLOWCTRL_RTS;
+	if(pins->flow_control & PLATFORM_UART_FLOW_CTS) flow_control |= UART_HW_FLOWCTRL_CTS;
+	if(pins->flow_control & PLATFORM_UART_FLOW_RTS) flow_control |= UART_HW_FLOWCTRL_RTS;
     
     uart_config_t cfg = {
        .baud_rate = baud,
@@ -230,11 +233,15 @@ uint32_t platform_uart_setup( unsigned id, uint32_t baud, int databits, int pari
     }
     uart_param_config(id, &cfg);
     uart_set_pin(id, pins->tx_pin, pins->rx_pin, pins->rts_pin, pins->cts_pin);
-    uart_set_line_inverse(id, (pins->tx_inverse? UART_INVERSE_TXD : UART_INVERSE_DISABLE)
-                                | (pins->rx_inverse? UART_INVERSE_RXD : UART_INVERSE_DISABLE)
-                                | (pins->rts_inverse? UART_INVERSE_RTS : UART_INVERSE_DISABLE)
-                                | (pins->cts_inverse? UART_INVERSE_CTS : UART_INVERSE_DISABLE)
-                        );
+	inversemask = (pins->tx_inverse? UART_INVERSE_TXD : UART_INVERSE_DISABLE)  |
+				  (pins->rx_inverse? UART_INVERSE_RXD : UART_INVERSE_DISABLE)  |
+				  (pins->rts_inverse? UART_INVERSE_RTS : UART_INVERSE_DISABLE) |
+				  (pins->cts_inverse? UART_INVERSE_CTS : UART_INVERSE_DISABLE);
+				  
+	if(inversemask)
+	{
+		uart_set_line_inverse(id, inversemask);
+	}
 
     if(uart_event_task_id == 0) uart_event_task_id = task_get_id( uart_event_task );
 
@@ -242,6 +249,26 @@ uint32_t platform_uart_setup( unsigned id, uint32_t baud, int databits, int pari
   }
 }
 
+void platform_uart_setmode(unsigned id, unsigned mode)
+{
+	uart_mode_t uartMode;
+	
+	switch(mode)
+	{
+		case PLATFORM_UART_MODE_IRDA:
+			uartMode = UART_MODE_IRDA; break;
+		case PLATFORM_UART_MODE_RS485_COLLISION_DETECT:
+			uartMode = UART_MODE_RS485_COLLISION_DETECT; break;
+		case PLATFORM_UART_MODE_RS485_APP_CONTROL:
+			uartMode = UART_MODE_RS485_APP_CTRL; break;
+		case PLATFORM_UART_MODE_HALF_DUPLEX:
+			uartMode = UART_MODE_RS485_HALF_DUPLEX; break;
+		case PLATFORM_UART_MODE_UART:
+		default:
+			uartMode = UART_MODE_UART; break;
+	}
+	uart_set_mode(id, uartMode);
+}
 
 void platform_uart_send_multi( unsigned id, const char *data, size_t len )
 {
