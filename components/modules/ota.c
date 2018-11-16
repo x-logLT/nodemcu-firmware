@@ -40,18 +40,23 @@ typedef struct
 static esp_ota_handle_t ota_handle = 0;
 
 static int ota_genpk(lua_State *L) {	
-	keyGenType *taskOptions = (keyGenType *) malloc(sizeof(keyGenType));
-	TaskHandle_t xHandle = NULL;
+	// keyGenType *taskOptions = (keyGenType *) malloc(sizeof(keyGenType));
+	// TaskHandle_t xHandle = NULL;
 	
-	if(taskOptions != NULL){
-		memset(taskOptions, 0, sizeof(keyGenType));
-		strcpy(taskOptions->pkName, luaL_checklstring( L, 1, NULL ));
-		taskOptions->keySize = luaL_checkint( L, 2 );
-		taskOptions->curveName = NULL;//luaL_optlstring( L, 3, NULL, NULL ); 
+	// if(taskOptions != NULL){
+		// memset(taskOptions, 0, sizeof(keyGenType));
+		// strcpy(taskOptions->pkName, luaL_checklstring( L, 1, NULL ));
+		// taskOptions->keySize = luaL_checkint( L, 2 );
+		// taskOptions->curveName = NULL;//luaL_optlstring( L, 3, NULL, NULL ); 
 		
-		xTaskCreatePinnedToCore( generatePKTask, "generatePK", 8096, taskOptions, uxTaskPriorityGet(NULL), &xHandle, APP_CPU_NUM );
+		// xTaskCreatePinnedToCore( generatePKTask, "generatePK", 8096, taskOptions, uxTaskPriorityGet(NULL), &xHandle, APP_CPU_NUM );
 
-	}
+	// }
+	
+	return 0;
+}
+
+static int ota_gencsr(lua_State *L) {
 	
 	return 0;
 }

@@ -16,16 +16,20 @@
 
 #include "soc/efuse_reg.h"
 #include "esp_ota_ops.h"
+#include "esp_log.h"
 
 #include "http_parser.h"
 
+#include "vfs.h"
 #include "ota.h"
 #include "ota_config.h"
 
 #define BASE64LEN(x)	(((x) + 3 - 1) / 3)
 
+#define OTA_ERROR_PRINTF(format, ... )	ESP_LOGI("OTA", format, ##__VA_ARGS__)
+
 uint64_t otaGetChipID(void);
-bool readFileToBuff(char *filename, uint8_t **buff, size_t *len);
+bool readFileToBuff(char *filename, char **buff, size_t *len);
 
 
 static QueueHandle_t otaControlQueue;
@@ -38,7 +42,7 @@ uint64_t otaGetChipID(void){
 	return ((word17 & MAX_UINT24) << 24) | ((word16 >> 8) & MAX_UINT24);
 }
 
-bool readFileToBuff(char *filename, uint8_t **buff, size_t *len)
+bool readFileToBuff(char *filename, char **buff, size_t *len)
 {
 	int fileFd = 0;
 	bool retval = false;
@@ -59,7 +63,7 @@ bool readFileToBuff(char *filename, uint8_t **buff, size_t *len)
 			size = vfs_tell(fileFd) + 1;
 			vfs_lseek(fileFd, 0L, VFS_SEEK_SET);
 	
-			*buff = (uint8_t *) calloc(size, sizeof(uint8_t));
+			*buff = (char *) calloc(size, sizeof(char));
 			if(*buff != NULL)
 			{
 				if((size = vfs_read(fileFd, *buff, size)) > 0)
@@ -90,10 +94,10 @@ bool writeBuffToFile(char *filename, uint8_t *buff, size_t len)
 	
 	if((buff != NULL) && (len > 0))
 	{
-		fd = vfs_open(pkName, "w");
-		if(fd > 0)
+		fileFd = vfs_open(filename, "w");
+		if(fileFd > 0)
 		{
-			if(vfs_write(fd, buff, len) == len)
+			if(vfs_write(fileFd, buff, len) == len)
 			{
 				retval = true;
 			}
@@ -101,7 +105,7 @@ bool writeBuffToFile(char *filename, uint8_t *buff, size_t len)
 			{
 				//could not write all data
 			}
-			vfs_close(fd);
+			vfs_close(fileFd);
 		}
 		else
 		{
@@ -159,14 +163,14 @@ bool otaClientInit(otaSSLTransportType **ssl)
 
 bool otaClientReadCA(otaSSLTransportType *ssl, char *caCert)
 {
-	uint8_t *pemData = NULL;
+	char *pemData = NULL;
 	size_t len = 0;
 	bool retval = false;
 	int ret = 0;
 	
 	if(ssl != NULL)
 	{
-		*ssl->errorString[0] = '\0';
+		ssl->errorString[0] = '\0';
 		if(ssl->cacert != NULL)
 		{
 			if(readFileToBuff(caCert, &pemData, &len))
@@ -174,7 +178,7 @@ bool otaClientReadCA(otaSSLTransportType *ssl, char *caCert)
 				if((ssl->cacert = (mbedtls_x509_crt *)malloc(sizeof(mbedtls_x509_crt))) != NULL)
 				{
 					mbedtls_x509_crt_init(ssl->cacert);
-					if ((ret = mbedtls_x509_crt_parse(ssl->cacert, pemData, len + 1)) >= 0) 
+					if ((ret = mbedtls_x509_crt_parse(ssl->cacert, (uint8_t *)pemData, len + 1)) >= 0) 
 					{
 						retval = true;
 					}
@@ -203,14 +207,14 @@ bool otaClientReadCA(otaSSLTransportType *ssl, char *caCert)
 
 bool otaClientReadCL(otaSSLTransportType *ssl, char *clCert, char *clKey)
 {
-	uint8_t *pemData = NULL;
+	char *pemData = NULL;
 	size_t len = 0;
 	bool retval = false;
 	int ret = 0;
 	
 	if(ssl != NULL)
 	{
-		*ssl->errorString[0] = '\0';
+		ssl->errorString[0] = '\0';
 		if((ssl->clcert != NULL) && (ssl->clkey != NULL))
 		{
 			if(readFileToBuff(clKey, &pemData, &len))
@@ -218,7 +222,7 @@ bool otaClientReadCL(otaSSLTransportType *ssl, char *clCert, char *clKey)
 				if((ssl->clkey = (mbedtls_pk_context *)malloc(sizeof(mbedtls_pk_context))) != NULL)
 				{
 					mbedtls_pk_init( ssl->clkey );
-					if((ret = mbedtls_pk_parse_key(ssl->clkey, pemData, len +1, NULL, 0)) >= 0)
+					if((ret = mbedtls_pk_parse_key(ssl->clkey, (uint8_t *)pemData, len +1, NULL, 0)) >= 0)
 					{
 						free(pemData);
 						pemData = 0;
@@ -227,7 +231,7 @@ bool otaClientReadCL(otaSSLTransportType *ssl, char *clCert, char *clKey)
 							if((ssl->clcert = (mbedtls_x509_crt *)malloc(sizeof(mbedtls_x509_crt))) != NULL)
 							{
 								mbedtls_x509_crt_init(ssl->clcert);
-								if ((ret = mbedtls_x509_crt_parse(ssl->clcert, pemData, len + 1)) < 0) 
+								if ((ret = mbedtls_x509_crt_parse(ssl->clcert, (uint8_t *)pemData, len + 1)) < 0) 
 								{
 									retval = true;
 								}
@@ -297,7 +301,7 @@ void otaClientDenit(otaSSLTransportType *ssl)
 	}
 }
 
-bool otaClientWrite(otaSSLTransportType *ssl, uint8_t *buff, size_t len)
+bool otaClientWrite(otaSSLTransportType *ssl, char *buff, size_t len)
 {
 	size_t bytesSent = 0;
 	int ret;
@@ -306,7 +310,7 @@ bool otaClientWrite(otaSSLTransportType *ssl, uint8_t *buff, size_t len)
 	{
 		do
 		{
-			ret = mbedtls_ssl_write(&ssl->ctx, buff + bytesSent, len - bytesSent);
+			ret = mbedtls_ssl_write(&ssl->ctx, (uint8_t *)(buff + bytesSent), len - bytesSent);
 			
 			if((ret < 0))
 			{
@@ -334,10 +338,11 @@ bool httpsClientConnect(otaSSLTransportType *ssl, char *hostname, char *port)
 {
 	bool retval = false;
 	int ret;
+	uint32_t flags;
 	
-	if((ssl != NULL) && (hostname != NULL) && (port != NULL)))
+	if((ssl != NULL) && (hostname != NULL) && (port != NULL))
 	{
-		*ssl->errorString[0] = '\0';
+		ssl->errorString[0] = '\0';
 		ret = 0;
 		if (ssl->cacert) 
 		{
@@ -360,7 +365,7 @@ bool httpsClientConnect(otaSSLTransportType *ssl, char *hostname, char *port)
 				//setsockopt(ssl->client_fd.fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
 				if ((ret = mbedtls_net_connect(&ssl->client_fd, hostname, port, MBEDTLS_NET_PROTO_TCP)) == 0) 
 				{
-					mbedtls_ssl_set_bio(ssl->ctx, ssl->client_fd, mbedtls_net_send, mbedtls_net_recv, NULL);
+					mbedtls_ssl_set_bio(&ssl->ctx, &ssl->client_fd, mbedtls_net_send, mbedtls_net_recv, NULL);
 					if((ret = mbedtls_ssl_set_hostname(&ssl->ctx, hostname)) == 0) 
 					{
 						while ((ret = mbedtls_ssl_handshake(&ssl->ctx)) != 0) 
@@ -403,7 +408,7 @@ bool httpsClientConnect(otaSSLTransportType *ssl, char *hostname, char *port)
 			else
 			{
 				mbedtls_strerror(ret, ssl->errorString, sizeof(ssl->errorString) / sizeof(ssl->errorString[0]));
-				OTA_ERROR_PRINTF("mbedtls_ssl_setup returned %s", (*ssl)->errorString );
+				OTA_ERROR_PRINTF("mbedtls_ssl_setup returned %s", ssl->errorString );
 			}
 		}
 		else
@@ -420,7 +425,7 @@ bool otaGeneratePK(otaSSLTransportType *ssl, char *pkName, uint16_t keySize, cha
 	int ret;
 	bool retval = false;
 	uint8_t *buff;
-	int fd = 0;
+	int fileFd = 0;
 	
 	mbedtls_pk_type_t pktype = MBEDTLS_PK_RSA;	
 	mbedtls_pk_context pk;
@@ -433,7 +438,7 @@ bool otaGeneratePK(otaSSLTransportType *ssl, char *pkName, uint16_t keySize, cha
 	
 	if(ssl != NULL)
 	{
-		*ssl->errorString[0] = '\0';
+		ssl->errorString[0] = '\0';
 	#if defined(MBEDTLS_ECP_C)
 		if(curveName != NULL)
 		{
@@ -464,8 +469,8 @@ bool otaGeneratePK(otaSSLTransportType *ssl, char *pkName, uint16_t keySize, cha
 			#endif
 			if(ret == 0)
 			{
-				fd = vfs_open(pkName, "w");
-				if(fd >  0)
+				fileFd = vfs_open(pkName, "w");
+				if(fileFd >  0)
 				{
 					buff = (uint8_t *)calloc(OTA_PEM_MAX_SIZE, sizeof(uint8_t));
 					if(buff != NULL)
@@ -473,7 +478,7 @@ bool otaGeneratePK(otaSSLTransportType *ssl, char *pkName, uint16_t keySize, cha
 						ret = mbedtls_pk_write_key_pem(&pk, buff, OTA_PEM_MAX_SIZE);
 						if(ret == 0)
 						{
-							if(vfs_write(fd, buff, strlen((char *)buff)) == strlen((char *)buff))
+							if(vfs_write(fileFd, buff, strlen((char *)buff)) == strlen((char *)buff))
 							{
 								retval = true;
 							}
@@ -489,7 +494,7 @@ bool otaGeneratePK(otaSSLTransportType *ssl, char *pkName, uint16_t keySize, cha
 					{
 						OTA_ERROR_PRINTF("Could not allocate memory for PEM buffer");
 					}
-					vfs_close(fd);
+					vfs_close(fileFd);
 				}
 			}
 			else
@@ -514,8 +519,7 @@ char *otaGenerateCSR(otaSSLTransportType *ssl, char *pkName, char *csrSubject){
 	int ret;
 	char csrSubjectBuff[50];
 	
-	int fd;
-	uint8_t *pemData = NULL;
+	char *pemData = NULL;
 	size_t len = 0;
 	
 	mbedtls_pk_context key;
@@ -539,22 +543,22 @@ char *otaGenerateCSR(otaSSLTransportType *ssl, char *pkName, char *csrSubject){
 		}
 		else
 		{
-			sprintf(csrSubjectBuff, "CN=%llX,O=%s,C=%s", getChipID(), OTA_DEFAULT_ORG, OTA_DEFAULT_CNTRY);
+			sprintf(csrSubjectBuff, "CN=%llX,O=%s,C=%s", otaGetChipID(), OTA_DEFAULT_ORG, OTA_DEFAULT_CNTRY);
 		}
 														
 		if( ( ret = mbedtls_x509write_csr_set_subject_name( &req, csrSubjectBuff ) ) == 0 )
 		{
 			if(readFileToBuff(pkName, &pemData, &len))
 			{
-				if( (ret = mbedtls_pk_parse_key( &key, pemData, len + 1, NULL, 0 )) == 0 )
+				if( (ret = mbedtls_pk_parse_key( &key, (uint8_t *)pemData, len + 1, NULL, 0 )) == 0 )
 				{
 					mbedtls_x509write_csr_set_key( &req, &key );
 					free(pemData);
 					pemData = NULL;
-					pemData = (uint8_t *)calloc(OTA_PEM_MAX_SIZE, sizeof(uint8_t));
+					pemData = (char *)calloc(OTA_PEM_MAX_SIZE, sizeof(uint8_t));
 					if(pemData != NULL)
 					{
-						if((ret = mbedtls_x509write_csr_pem(&req, pemData, OTA_PEM_MAX_SIZE,  mbedtls_ctr_drbg_random, &ssl->ctr_drbg)) == 0)
+						if((ret = mbedtls_x509write_csr_pem(&req, (uint8_t *)pemData, OTA_PEM_MAX_SIZE,  mbedtls_ctr_drbg_random, &ssl->ctr_drbg)) == 0)
 						{
 							
 						}
@@ -607,17 +611,20 @@ bool otaRegister(otaMsgFirstTime *options){
 	
 	char baundry[] = "ab1234567cd";
 	char unencodedAuth[42];
-	char encodedString[BASE64LEN(sizeof(unencodedAuth))+1];
+	unsigned char encodedString[BASE64LEN(sizeof(unencodedAuth))+1];
 	char authHttpString[sizeof(encodedString)+21+2+1];
 	
 	char port[6];
 	char hostname[31];
+	char deviceName[] = {};
+	char agent[] = {};
 	
 	struct http_parser_url purl;
 	
+	struct vfs_stat fstat;
+	
 	int httpBodySize = 0;
 	int ret;
-	uint32_t flags;
 	size_t authEncSize;
 	
 	otaSSLTransportType *ssl;
@@ -633,18 +640,18 @@ bool otaRegister(otaMsgFirstTime *options){
 				vfs_remove(OTA_KEY_NAME);
 			}
 			
-			if(!vfs_stat(OTA_KEY_NAME))
+			if(!vfs_stat(OTA_KEY_NAME, &fstat) == VFS_RES_OK)
 			{
-				otaGeneratePK(	OTA_KEY_NAME, options->keySize > 0 ? options->keySize : OTA_DEFAULT_KEY_SIZE, 
+				otaGeneratePK(ssl, OTA_KEY_NAME, options->keySize > 0 ? options->keySize : OTA_DEFAULT_KEY_SIZE, 
 								sizeof(options->curveName) > 0 ? options->curveName : NULL);
 			}
 				
-			if((csrPemData = otaGenerateCSR(OTA_KEY_NAME, NULL)) != NULL)
+			if((csrPemData = otaGenerateCSR(ssl, OTA_KEY_NAME, NULL)) != NULL)
 			{
 				if(strlen(options->username) > 0)
 				{
 					sprintf(unencodedAuth, "%s:%s", options->username, options->password);
-					if((ret = mbedtls_base64_encode(encodedString, sizeof(encodedString), &authEncSize, unencodedAuth, strlen(unencodedAuth)))
+					if((ret = mbedtls_base64_encode(encodedString, sizeof(encodedString), &authEncSize, (unsigned char *)unencodedAuth, strlen(unencodedAuth))) != 0)
 					{
 						sprintf(authHttpString, "Authorization: Basic %s\r\n", encodedString);
 					}
@@ -656,7 +663,7 @@ bool otaRegister(otaMsgFirstTime *options){
 					}
 				}
 				
-				ret = vasprintf(&httpBody,	"--%s\r\n"
+				ret = asprintf(&httpBody,	"--%s\r\n"
 											"Content-Disposition: form-data; name=\"id\"\r\n\r\n"
 											"%llX\r\n"
 											"--%s\r\n"
@@ -665,8 +672,8 @@ bool otaRegister(otaMsgFirstTime *options){
 											"--%s\r\n"
 											"Content-Disposition: form-data; name=\"csr\"; filename=\"otaCL.csr\"\r\n"
 											"Content-Type: text/plain\r\n\r\n",
-											baundry, getChipID(), baundry, deviceName, baundry);
-				sprintf(&httpBodyEnd, "\r\n--%s--\r\n", baundry);
+											baundry, otaGetChipID(), baundry, deviceName, baundry);
+				sprintf(httpBodyEnd, "\r\n--%s--\r\n", baundry);
 											
 				if(ret > 0)
 				{ 
@@ -679,7 +686,7 @@ bool otaRegister(otaMsgFirstTime *options){
 					{
 						sprintf(port, "%u",  purl.field_data[UF_PORT].len > 0 ? purl.port : 443);
 						sprintf(hostname, "%.*s", purl.field_data[UF_HOST].len, options->serverURL + purl.field_data[UF_HOST].off);
-						ret = vasprintf(&httpHeader,"POST %s HTTP/1.1\r\n"
+						ret = asprintf(&httpHeader,"POST %s HTTP/1.1\r\n"
 													"Host: %s\r\n"
 													"User-Agent: %s\r\n"
 													"Accept: text/plain\r\n"
@@ -714,7 +721,7 @@ bool otaRegister(otaMsgFirstTime *options){
 					}
 					else
 					{
-						OTA_ERROR_PRINTF("Error parse url %s", options->serverURL))
+						OTA_ERROR_PRINTF("Error parse url %s", options->serverURL);
 					}
 					free(httpBody);
 				}
