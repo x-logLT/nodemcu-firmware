@@ -9,6 +9,7 @@
 #include "esp_log.h"
 #include "soc/efuse_reg.h"
 #include "ldebug.h"
+#include "rom/rtc.h"
 
 // Lua: node.chipid()
 static int node_chipid( lua_State *L )
@@ -29,6 +30,14 @@ static int node_chipid( lua_State *L )
 
 
 // Lua: node.heap()
+static int node_bootreason( lua_State* L )
+{
+	 lua_pushinteger(L, rtc_get_reset_reason(0));
+	 lua_pushinteger(L, rtc_get_reset_reason(1));
+	 return 2;
+}
+
+
 static int node_heap( lua_State* L )
 {
   uint32_t sz = esp_get_free_heap_size();
@@ -321,6 +330,7 @@ static const LUA_REG_TYPE node_map[] =
   { LSTRKEY( "compile" ),   LFUNCVAL( node_compile ) },
   { LSTRKEY( "dsleep" ),    LFUNCVAL( node_dsleep ) },
   { LSTRKEY( "egc" ),       LROVAL( node_egc_map ) },
+  { LSTRKEY( "bootreason" ),LFUNCVAL( node_bootreason ) },
   { LSTRKEY( "heap" ),      LFUNCVAL( node_heap )  },
   { LSTRKEY( "input" ),     LFUNCVAL( node_input ) },
   { LSTRKEY( "osprint" ),   LFUNCVAL( node_osprint ) },
