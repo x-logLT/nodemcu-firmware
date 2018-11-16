@@ -166,6 +166,12 @@ config LUA_MODULE_SDMMC
   help
       Includes the sdmmc module.
 
+config LUA_MODULE_SJSON
+  bool "SJSON module"
+  default "n"
+  help
+      Includes the sjson module.
+
 config LUA_MODULE_SIGMA_DELTA
   bool "Sigma-Delta module"
   default "n"
