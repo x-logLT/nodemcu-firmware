@@ -54,6 +54,7 @@ static int time_getLocal(lua_State *L)
 	ADD_TABLE_ITEM (L, "hour", date.tm_hour);
 	ADD_TABLE_ITEM (L, "min",  date.tm_min);
 	ADD_TABLE_ITEM (L, "sec",  date.tm_sec);
+	ADD_TABLE_ITEM (L, "dst",  date.tm_isdst);
 
 	return 1;
 }
@@ -68,17 +69,6 @@ static int time_setTimezone(lua_State *L)
 	
 	return 0;
 }
-
-static int time_uptime(lua_State *L)
-{
-	int64_t uptime = esp_timer_get_time();
-	
-	lua_pushnumber (L, uptime / 1000000);
-	lua_pushnumber (L, uptime % 1000000);
-	
-	return 2;
-}
-	
 
 static int time_initNTP(lua_State *L)
 {
@@ -97,7 +87,21 @@ static int time_initNTP(lua_State *L)
 	return 0;
 }
 
-static int rtctime_epoch2cal (lua_State *L)
+static int time_ntpEnabled(lua_State *L)
+{
+	lua_pushboolean(L, sntp_enabled());
+	
+	return 1;
+}
+
+static int time_ntpStop(lua_State *L)
+{
+	sntp_stop();
+	
+	return 0;
+}
+
+static int time_epoch2cal(lua_State *L)
 {
   struct tm *date;
   
@@ -120,14 +124,45 @@ static int rtctime_epoch2cal (lua_State *L)
   return 1;
 }
 
+static int time_cal2epoc(lua_State *L)
+{
+	struct tm date;
+	luaL_checkanytable (L, 1);
+	
+	lua_getfield (L, 1, "year");
+	date.tm_year = luaL_optinteger(L, -1, 1900) - 1900;
+	
+	lua_getfield (L, 1, "mon");
+	date.tm_mon = luaL_optinteger(L, -1, 1) - 1;
+	
+	lua_getfield (L, 1, "day");
+	date.tm_mday = luaL_optinteger(L, -1, 0);
+	
+	lua_getfield (L, 1, "hour");
+	date.tm_hour = luaL_optinteger(L, -1, 0);
+	
+	lua_getfield (L, 1, "min");
+	date.tm_min = luaL_optinteger(L, -1, 0);
+	
+	lua_getfield (L, 1, "sec");
+	date.tm_sec = luaL_optinteger(L, -1, 0);
+	
+	lua_pushnumber (L, mktime(&date));
+	
+	return 1;
+}
+
 static const LUA_REG_TYPE time_map[] = {
   { LSTRKEY("set"),            	LFUNCVAL(time_set) },
   { LSTRKEY("get"),            	LFUNCVAL(time_get) },
   { LSTRKEY("getlocal"),       	LFUNCVAL(time_getLocal) },
   { LSTRKEY("settimezone"),   	LFUNCVAL(time_setTimezone) },
-  { LSTRKEY("uptime"),   		LFUNCVAL(time_uptime) },
   { LSTRKEY("initntp"),         LFUNCVAL(time_initNTP)  },
-  { LSTRKEY("epoch2cal"),      	LFUNCVAL(rtctime_epoch2cal) },
+  { LSTRKEY("ntpenabled"),      LFUNCVAL(time_ntpEnabled) },
+  { LSTRKEY("ntpstop"),         LFUNCVAL(time_ntpStop) },
+  { LSTRKEY("epoch2cal"),      	LFUNCVAL(time_epoch2cal) },
+  { LSTRKEY("cal2epoch"),      	LFUNCVAL(time_cal2epoc) },
+  
   { LNILKEY, LNILVAL }
 };
 
