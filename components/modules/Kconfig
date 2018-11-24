@@ -244,5 +244,11 @@ config LUA_MODULE_OTA
   default "n"
   help
       Includes the OTA module.
+	  
+config LUA_MODULE_WS2812FX
+  bool "ws2812fx module"
+  default "n"
+  help
+      Includes the WS2812FX module.
 
 endmenu

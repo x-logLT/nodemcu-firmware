@@ -14,3 +14,9 @@
 [submodule "components/qrcodegen/qrcodegen"]
 	path = components/qrcodegen/qrcodegen
 	url = https://github.com/nayuki/QR-Code-generator.git
+[submodule "components/ws2812fx/Adafruit_NeoPixel"]
+	path = components/ws2812fx/Adafruit_NeoPixel
+	url = https://github.com/adafruit/Adafruit_NeoPixel.git
+[submodule "components/ws2812fx/WS2812FX"]
+	path = components/ws2812fx/WS2812FX
+	url = https://github.com/kitesurfer1404/WS2812FX.git
