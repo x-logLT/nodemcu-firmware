@@ -276,6 +276,13 @@ static int wifi_sta_config (lua_State *L)
   if (err != ESP_OK)
     return luaL_error (L, "failed to set wifi auto-connect, code %d", err);
 
+  lua_getfield(L, 1, "phymode");
+  uint8_t phymode = luaL_optnumber(L, -1, PHYMODE_BGN);
+  err = esp_wifi_set_protocol(ESP_WIFI_IF_STA, phymode);
+  if (err != ESP_OK)
+    return luaL_error (L, "failed to set wifi phy mode, code %d", err);
+
+
   err = esp_wifi_set_config (WIFI_IF_STA, &cfg);
   if (err != ESP_OK)
     return luaL_error (L, "failed to set wifi config, code %d", err);
@@ -443,15 +450,15 @@ static int wifi_sta_scan (lua_State *L)
 
 
 const LUA_REG_TYPE wifi_sta_map[] = {
-  { LSTRKEY( "setip" ),       LFUNCVAL( wifi_sta_setip )      },
-  { LSTRKEY( "sethostname" ), LFUNCVAL( wifi_sta_sethostname )},
-  { LSTRKEY( "config" ),      LFUNCVAL( wifi_sta_config )     },
-  { LSTRKEY( "connect" ),     LFUNCVAL( wifi_sta_connect )    },
-  { LSTRKEY( "disconnect" ),  LFUNCVAL( wifi_sta_disconnect ) },
-  { LSTRKEY( "getconfig" ),   LFUNCVAL( wifi_sta_getconfig )  },
-  { LSTRKEY( "getmac" ),      LFUNCVAL( wifi_sta_getmac )     },
-  { LSTRKEY( "on" ),          LFUNCVAL( wifi_sta_on )         },
-  { LSTRKEY( "scan" ),        LFUNCVAL( wifi_sta_scan )       },
+  { LSTRKEY( "setip" ),       	LFUNCVAL( wifi_sta_setip )      },
+  { LSTRKEY( "sethostname" ), 	LFUNCVAL( wifi_sta_sethostname )},
+  { LSTRKEY( "config" ),      	LFUNCVAL( wifi_sta_config )     },
+  { LSTRKEY( "connect" ),     	LFUNCVAL( wifi_sta_connect )    },
+  { LSTRKEY( "disconnect" ),  	LFUNCVAL( wifi_sta_disconnect ) },
+  { LSTRKEY( "getconfig" ),   	LFUNCVAL( wifi_sta_getconfig )  },
+  { LSTRKEY( "getmac" ),      	LFUNCVAL( wifi_sta_getmac )     },
+  { LSTRKEY( "on" ),          	LFUNCVAL( wifi_sta_on )         },
+  { LSTRKEY( "scan" ),        	LFUNCVAL( wifi_sta_scan )       },
 
   { LNILKEY, LNILVAL }
 };

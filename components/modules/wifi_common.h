@@ -59,6 +59,15 @@ typedef struct
   fill_cb_arg_fn fill_cb_arg;
 } event_desc_t;
 
+enum 
+{
+	PHY_B = WIFI_PROTOCOL_11B,
+	PHY_BG = WIFI_PROTOCOL_11B|WIFI_ PROTOCOL_11G,
+	PHY_BGN = WIFI_PROTOCOL_11B| WIFI_PROTOCOL_11G|WIFI_PROTOCOL_11N,
+	PHY_BGNLR = WIFI_PROTOCOL_11B| WIFI_PROTOCOL_11G|WIFI_PROTOCOL_11N|WIFI_PROTOCOL_LR,
+	PHY_LR = WIFI_PROTOCOL_LR
+};
+
 #define ARRAY_LEN(a) (sizeof(a) / sizeof(a[0]))
 
 int wifi_event_idx_by_name (const event_desc_t *table, unsigned n, const char *name);

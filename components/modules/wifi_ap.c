@@ -227,6 +227,12 @@ static int wifi_ap_config (lua_State *L)
   lua_getfield (L, 1, "beacon");
   cfg.ap.beacon_interval = luaL_optint (L, -1, DEFAULT_AP_BEACON);
   
+  lua_getfield(L, 1, "phymode");
+  uint8_t phymode = luaL_optnumber(L, -1, PHYMODE_BGN);
+  err = esp_wifi_set_protocol(ESP_WIFI_IF_AP, phymode);
+  if (err != ESP_OK)
+    return luaL_error (L, "failed to set wifi phy mode, code %d", err);
+  
   SET_SAVE_MODE(save);
   esp_err_t err = esp_wifi_set_config (WIFI_IF_AP, &cfg);
   return (err == ESP_OK) ?
