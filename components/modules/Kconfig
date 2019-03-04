@@ -210,12 +210,6 @@ config LUA_MODULE_SIGMA_DELTA
   help
       Includes the sigma_delta module. This module provides access to the
       sigma-delta hardware.
-	  
-config LUA_MODULE_SJSON
-  bool "SJSON module"
-  default "n"
-  help
-      Includes the sjson module.
 
 config LUA_MODULE_SODIUM
   bool "Sodium module"
@@ -271,12 +265,6 @@ config LUA_MODULE_WS2812
   help
       Includes the ws2812 module.
 	  
-config LUA_MODULE_TIME
-  bool "time module"
-  default "n"
-  help
-      Includes the time module.
-
 config LUA_MODULE_TIME
   bool "time module"
   default "n"
