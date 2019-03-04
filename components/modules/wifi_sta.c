@@ -277,8 +277,8 @@ static int wifi_sta_config (lua_State *L)
     return luaL_error (L, "failed to set wifi auto-connect, code %d", err);
 
   lua_getfield(L, 1, "phymode");
-  uint8_t phymode = luaL_optnumber(L, -1, PHYMODE_BGN);
-  err = esp_wifi_set_protocol(ESP_WIFI_IF_STA, phymode);
+  uint8_t phymode = luaL_optnumber(L, -1, PHY_BGN);
+  err = esp_wifi_set_protocol(WIFI_IF_STA, phymode);
   if (err != ESP_OK)
     return luaL_error (L, "failed to set wifi phy mode, code %d", err);
 
