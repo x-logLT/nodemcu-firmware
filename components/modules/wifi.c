@@ -110,6 +110,7 @@ static int wifi_init (lua_State *L)
 
 extern const LUA_REG_TYPE wifi_sta_map[];
 extern const LUA_REG_TYPE wifi_ap_map[];
+extern const LUA_REG_TYPE wifi_mesh_map[];
 
 static const LUA_REG_TYPE wifi_map[] =
 {
@@ -121,6 +122,7 @@ static const LUA_REG_TYPE wifi_map[] =
 
   { LSTRKEY( "sta" ),         LROVAL( wifi_sta_map )          },
   { LSTRKEY( "ap" ),          LROVAL( wifi_ap_map )           },
+  { LSTRKEY( "mesh" ),        LROVAL( wifi_mesh_map )         },
 
 
   { LSTRKEY( "NULLMODE" ),    LNUMVAL( WIFI_MODE_NULL )       },
