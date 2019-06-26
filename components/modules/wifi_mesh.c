@@ -7,6 +7,7 @@
 #include "lwip/ip_addr.h"
 #include "task/task.h"
 
+#include "esp_log.h"
 #include "esp_mesh.h"
 #include "esp_mesh_internal.h"
 
@@ -37,8 +38,12 @@ static void handle_mesh_event (task_param_t param, task_prio_t prio)
   static uint8_t last_layer = 0;
 
   lua_State *L = lua_getstate();
+  
+  ESP_LOGI("Mesh", "Mesh event: %d, CB: %d\n", ev->id, cbRef);
+  
   if (cbRef != LUA_NOREF) {
 	lua_rawgeti(L, LUA_REGISTRYINDEX, cbRef);
+	ESP_LOGI("Mesh", "Mesh callback\n");
 	switch (ev->id)
 	{
 		case MESH_EVENT_STARTED:
@@ -212,6 +217,7 @@ void wifi_mesh_config(lua_State *L)
 	size_t len;
 	char *str;
 	uint8_t i;
+	int authmode;
 	esp_err_t err;
 	const char *fmts[] = {
 		  "%hhx%hhx%hhx%hhx%hhx%hhx",
@@ -245,6 +251,13 @@ void wifi_mesh_config(lua_State *L)
 	lua_getfield (L, 1, "router_pwd");
 	str = luaL_checklstring (L, -1, &len);
 	memcpy((uint8_t *) &cfg.router.password, str, sizeof(cfg.router.password));
+	
+	lua_getfield (L, 1, "router_auth");
+	authmode = luaL_optint (L, -1, WIFI_AUTH_WPA2_PSK);
+	if (authmode < 0 || authmode >= WIFI_AUTH_MAX)
+		return luaL_error (L, "unknown auth mode %d", authmode);
+	
+	esp_mesh_set_ap_authmode(authmode);
 	
 	lua_getfield (L, 1, "router_bssid");
 	if (lua_isstring (L, -1))
@@ -288,8 +301,12 @@ void wifi_mesh_config(lua_State *L)
 	err = tcpip_adapter_dhcps_stop(TCPIP_ADAPTER_IF_AP);
 	if (err != ESP_OK)
 		return luaL_error (L, "failed to set stop DHCP server, code %d", err);
-	//ESP_ERROR_CHECK(tcpip_adapter_dhcpc_stop(TCPIP_ADAPTER_IF_STA));
 	
+	err = tcpip_adapter_dhcpc_stop(TCPIP_ADAPTER_IF_STA);
+	if (err != ESP_OK)
+		return luaL_error (L, "failed to set stop DHCP client, code %d", err);
+	
+	esp_wifi_set_storage(WIFI_STORAGE_FLASH);
 	err = esp_mesh_init();
 	if (err != ESP_OK)
 		return luaL_error (L, "failed to init mesh, code %d", err);
@@ -343,7 +360,10 @@ void wifi_mesh_start(lua_State *L)
 void wifi_mesh_init(void)
 {
 	mesh_event = task_get_id (handle_mesh_event);
-	memset(CB_meshRefs, LUA_NOREF, sizeof(int) * MESH_EVENT_MAX);
+	
+	for(int i = 0; i < MESH_EVENT_MAX; i++)	{	
+		CB_meshRefs[i] = LUA_NOREF;
+	}
 	return ;
 }
 

@@ -96,10 +96,12 @@ static int wifi_stop (lua_State *L)
 
 extern void wifi_ap_init (void);
 extern void wifi_sta_init (void);
+extern void wifi_mesh_init(void);
 static int wifi_init (lua_State *L)
 {
   wifi_ap_init ();
   wifi_sta_init ();
+  wifi_mesh_init();
 
   wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
   esp_err_t err = esp_wifi_init (&cfg);

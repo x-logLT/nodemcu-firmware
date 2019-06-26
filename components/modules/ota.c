@@ -165,14 +165,83 @@ static int ota_flashFile(lua_State *L) {
 	return 0;
 }
 
+static int ota_https(lua_State *L) {
+	esp_http_client_config_t config;
+	size_t len;
+	char *serverCrt = NULL;
+	char *clientCrt = NULL;
+	char *clientKey = NULL;
+	
+	config.url = lua_getfield (L, 1, "url");
+	
+	lua_getfield (L, 1, "servercrt");
+	char *serverCrtName = luaL_optlstring (L, -1, "", &len);
+	if(len > 0)
+	{
+		
+		readFileToBuff(serverCrtName, &serverCrt, NULL);
+		config.cert_pem = serverCrtName;
+	}
+	
+	lua_getfield (L, 1, "clientcrt");
+	char *clientCrtName = luaL_optlstring (L, -1, "", &len);
+	if(len > 0)
+	{
+		lua_getfield (L, 1, "clientkey");
+		char *clientKeyName = luaL_optlstring (L, -1, "", &len);
+		if(len > 0)
+		{
+			readFileToBuff(clientCrtName, &clientCrt, NULL);
+			readFileToBuff(clientKeyName, &clientKey, NULL);
+			
+			config.client_cert_pem = clientCrt;
+			config.client_key_pem = clientKey;
+		}
+	}
+	
+	esp_err_t err = esp_https_ota(&config);
+	
+	if(serverCrt) free(serverCrt);
+	if(clientCrt) free(clientCrt);
+	if(clientKey) free(clientKey);
+	
+	switch(err)
+	{
+		case ESP_OK:
+			return 0;
+			break;
+		case ESP_FAIL:
+			return luaL_error (L, "Generic OTA error");
+			break;
+		case ESP_ERR_INVALID_ARG:
+			return luaL_error (L, "Invalid OTA argument");
+			break;
+		case ESP_ERR_OTA_VALIDATE_FAILED:
+			return luaL_error (L, "Invalid OTA image");
+			break;
+		case ESP_ERR_NO_MEM:
+			return luaL_error (L, "Cannot allocate memory for OTA");
+			break;
+		case ESP_ERR_FLASH_OP_TIMEOUT:
+		case ESP_ERR_FLASH_OP_FAIL:
+			return luaL_error (L, "Flash write failed");
+			break;
+		default:
+			return luaL_error (L, "Generic OTA error: %d", err);
+			break;
+	}
+	
+}
+
 static const LUA_REG_TYPE ota_map[] = {
   { LSTRKEY( "bootPartition" ),    		LFUNCVAL( ota_get_boot_partition ) },
   { LSTRKEY( "runningPartition" ),    	LFUNCVAL( ota_get_running_partition ) },
   { LSTRKEY( "nextUpdatePartition" ),   LFUNCVAL( ota_get_next_update_partition ) },
   { LSTRKEY( "setup" ),     			LFUNCVAL( ota_setup ) },
   { LSTRKEY( "flashFile" ),     		LFUNCVAL( ota_flashFile ) },
-  { LSTRKEY( "genpk" ),     		LFUNCVAL( ota_genpk ) },
-  { LSTRKEY( "gencsr" ),     		LFUNCVAL( ota_gencsr ) },
+  { LSTRKEY( "genpk" ),     			LFUNCVAL( ota_genpk ) },
+  { LSTRKEY( "gencsr" ),     			LFUNCVAL( ota_gencsr ) },
+  { LSTRKEY( "httpsOta"},				LFUNCVAL( ota_https ) },
 };
 
 NODEMCU_MODULE(OTA, "ota", ota_map, NULL);
