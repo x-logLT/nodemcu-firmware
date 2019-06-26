@@ -24,6 +24,7 @@
  * ****************************************************************************/
 
 #include "platform.h"
+#include "platform_rmt.h"
 
 #include "driver/rmt.h"
 #include "driver/gpio.h"
@@ -59,9 +60,8 @@ const rmt_item32_t ws2812_rmt_bit1 = {
 
 #define ws2812_rmt_reset {.level0 = 0, .duration0 = 4, .level1 = 0, .duration1 = 4}
 // reset signal, spans one complete buffer block
-const DRAM_ATTR rmt_item32_t ws2812_rmt_reset_block[64] = { [0 ... 63] = ws2812_rmt_reset };
+const rmt_item32_t ws2812_rmt_reset_block[64] = { [0 ... 63] = ws2812_rmt_reset };
 
-static uint8_t ws2812_data_in_spiram = 0;
 
 // descriptor for a ws2812 chain
 typedef struct {
@@ -80,7 +80,7 @@ static ws2812_chain_t ws2812_chains[RMT_CHANNEL_MAX];
 static intr_handle_t ws2812_intr_handle;
 
 
-static void IRAM_ATTR ws2812_fill_memory_encoded( rmt_channel_t channel, const uint8_t *data, size_t len, size_t tx_offset )
+static void ws2812_fill_memory_encoded( rmt_channel_t channel, const uint8_t *data, size_t len, size_t tx_offset )
 {
   for (size_t idx = 0; idx < len; idx++) {
     uint8_t byte = data[idx];
@@ -94,7 +94,7 @@ static void IRAM_ATTR ws2812_fill_memory_encoded( rmt_channel_t channel, const u
 }
 
 
-static void IRAM_ATTR ws2812_isr(void *arg)
+static void ws2812_isr(void *arg)
 {
   uint32_t intr_st = RMT.int_st.val;
 
@@ -140,10 +140,6 @@ int platform_ws2812_setup( uint8_t gpio_num, uint8_t num_mem, const uint8_t *dat
     chain->len = len;
     chain->data = data;
     chain->tx_offset = 0;
-	
-	if(!esp_ptr_internal(chain->data))	{
-		ws2812_data_in_spiram++;
-	}
 
 #ifdef WS2812_DEBUG
     ESP_LOGI("ws2812", "Setup done for gpio %d on RMT channel %d", gpio_num, channel);
@@ -165,10 +161,6 @@ int platform_ws2812_release( void )
 
       platform_rmt_release( channel );
       chain->valid = false;
-	  
-	  if(!esp_ptr_internal(chain->data)) {
-		  ws2812_data_in_spiram--;
-	  }
 
       // attach GPIO to pin, driving 0
       gpio_set_level( chain->gpio, 0 );
@@ -204,7 +196,7 @@ int platform_ws2812_send( void )
         res = PLATFORM_ERR;
         break;
       }
-      if (rmt_driver_install( channel, 0, ESP_INTR_FLAG_LOWMED | (ws2812_data_in_spiram ? ESP_INTR_FLAG_IRAM : 0) | ESP_INTR_FLAG_SHARED ) != ESP_OK) {
+      if (rmt_driver_install( channel, 0, PLATFORM_RMT_INTR_FLAGS ) != ESP_OK) {
         res = PLATFORM_ERR;
         break;
       }
@@ -213,7 +205,7 @@ int platform_ws2812_send( void )
 
 
   // hook-in our shared ISR
-  esp_intr_alloc( ETS_RMT_INTR_SOURCE, ESP_INTR_FLAG_LOWMED | (ws2812_data_in_spiram ? ESP_INTR_FLAG_IRAM : 0) | ESP_INTR_FLAG_SHARED, ws2812_isr, NULL, &ws2812_intr_handle );
+  esp_intr_alloc( ETS_RMT_INTR_SOURCE, PLATFORM_RMT_INTR_FLAGS, ws2812_isr, NULL, &ws2812_intr_handle );
 
 
   // start selected channels one by one
