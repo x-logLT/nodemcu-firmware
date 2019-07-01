@@ -42,4 +42,6 @@ typedef struct {
 	bool regenKey;
 }otaMsgFirstTime;
 
+bool readFileToBuff(char *filename, char **buff, size_t *len);
+
 #endif

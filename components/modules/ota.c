@@ -22,6 +22,9 @@
 
 #include "soc/efuse_reg.h"
 #include "esp_ota_ops.h"
+#include "esp_log.h"
+
+#include "esp_https_ota.h"
 
 #include "ota.h"
 
@@ -172,25 +175,30 @@ static int ota_https(lua_State *L) {
 	char *clientCrt = NULL;
 	char *clientKey = NULL;
 	
-	config.url = lua_getfield (L, 1, "url");
+	memset(&config, 0, sizeof(esp_http_client_config_t));
+	
+	lua_getfield (L, 1, "url");
+	config.url = luaL_checklstring (L, -1, &len);
 	
 	lua_getfield (L, 1, "servercrt");
 	char *serverCrtName = luaL_optlstring (L, -1, "", &len);
 	if(len > 0)
 	{
-		
+		ESP_LOGI("OTA", "Reading server certificate from %s", serverCrtName);
 		readFileToBuff(serverCrtName, &serverCrt, NULL);
-		config.cert_pem = serverCrtName;
+		config.cert_pem = serverCrt;
 	}
 	
 	lua_getfield (L, 1, "clientcrt");
 	char *clientCrtName = luaL_optlstring (L, -1, "", &len);
 	if(len > 0)
 	{
+		ESP_LOGI("OTA", "Reading client certificate from %s", clientCrtName);
 		lua_getfield (L, 1, "clientkey");
 		char *clientKeyName = luaL_optlstring (L, -1, "", &len);
 		if(len > 0)
 		{
+			ESP_LOGI("OTA", "Reading client	key from %s", clientKeyName);
 			readFileToBuff(clientCrtName, &clientCrt, NULL);
 			readFileToBuff(clientKeyName, &clientKey, NULL);
 			
@@ -227,10 +235,33 @@ static int ota_https(lua_State *L) {
 			return luaL_error (L, "Flash write failed");
 			break;
 		default:
-			return luaL_error (L, "Generic OTA error: %d", err);
+			return luaL_error (L, "Generic OTA error: %s", esp_err_to_name(err));
 			break;
 	}
 	
+}
+
+static int ota_appsha(lua_State *L) {
+	char *shaRes[65];
+	size_t len;
+	
+	len = esp_ota_get_app_elf_sha256(shaRes, sizeof(shaRes));
+	
+	lua_pushlstring(L, shaRes, len-1);
+	
+	return 1;
+}
+
+static int ota_markValid(lua_State *L) {
+	lua_pushboolean(L, esp_ota_mark_app_valid_cancel_rollback() == ESP_OK);
+	
+	return 1;
+}
+
+static int ota_markInvalid(lua_State *L) {
+	lua_pushboolean(L, esp_ota_mark_app_invalid_rollback_and_reboot() == ESP_OK);
+	
+	return 1;
 }
 
 static const LUA_REG_TYPE ota_map[] = {
@@ -241,7 +272,10 @@ static const LUA_REG_TYPE ota_map[] = {
   { LSTRKEY( "flashFile" ),     		LFUNCVAL( ota_flashFile ) },
   { LSTRKEY( "genpk" ),     			LFUNCVAL( ota_genpk ) },
   { LSTRKEY( "gencsr" ),     			LFUNCVAL( ota_gencsr ) },
-  { LSTRKEY( "httpsOta"},				LFUNCVAL( ota_https ) },
+  { LSTRKEY( "httpsOta"),				LFUNCVAL( ota_https ) },
+  { LSTRKEY( "appsha"),					LFUNCVAL( ota_appsha ) },
+  { LSTRKEY( "markvalid"),				LFUNCVAL( ota_markValid ) },
+  { LSTRKEY( "markinvalid"),			LFUNCVAL( ota_markInvalid ) },
 };
 
 NODEMCU_MODULE(OTA, "ota", ota_map, NULL);

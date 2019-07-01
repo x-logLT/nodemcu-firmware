@@ -27,6 +27,8 @@ enum {
   ContextRef,
   PostDataRef,
   CertRef,
+  clCertRef,
+  clKeyRef,
   CountRefs // Must be last
 };
 
@@ -427,6 +429,18 @@ static void parse_options(lua_State *L, lhttp_context_t *context, esp_http_clien
     const char *cert = lua_tostring(L, -1);
     context_setref(L, context, CertRef);
     config->cert_pem = cert;
+  }
+  
+  if (opt_get(L, "cl_cert", LUA_TSTRING)) {
+    const char *cl_cert = lua_tostring(L, -1);
+    context_setref(L, context, clCertRef);
+    config->client_cert_pem = cl_cert;
+  }
+  
+  if (opt_get(L, "cl_key", LUA_TSTRING)) {
+    const char *cl_key = lua_tostring(L, -1);
+    context_setref(L, context, clKeyRef);
+    config->client_key_pem = cl_key;
   }
 
   // This function doesn't set headers because we need the connection to be created first

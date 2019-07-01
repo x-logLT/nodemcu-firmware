@@ -62,10 +62,10 @@ bool readFileToBuff(char *filename, char **buff, size_t *len)
 			vfs_lseek(fileFd, 0L, VFS_SEEK_END);
 			size = vfs_tell(fileFd) + 1;
 			vfs_lseek(fileFd, 0L, VFS_SEEK_SET);
-	
 			*buff = (char *) calloc(size, sizeof(char));
 			if(*buff != NULL)
 			{
+				memset(*buff, 0, size);
 				if((size = vfs_read(fileFd, *buff, size)) > 0)
 				{	
 					retval = true;
